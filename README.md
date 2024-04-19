@@ -7,7 +7,7 @@ Built in container `rocm/pytorch:latest` currently this is image ID `214ceb2d47a
 
 ## Docker Run command
 
-`docker run -it --network=host --device=/dev/kfd --device=/dev/dri --group-add=video --ipc=host --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --shm-size 8G -v $HOME/dockerx:/dockerx -w /dockerx rocm/pytorch:latest`
+`docker run -it --network=host --device=/dev/kfd --device=/dev/dri --group-add=video --ipc=host --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --shm-size 8G -v $HOME/dockerx:/dockerx -w /dockerx rocm/pytorch:rocm6.0.2_ubuntu22.04_py3.10_pytorch_2.1.2 `
 
 ## GPU
 
