@@ -15,5 +15,4 @@ Radeon 7900xtx ROCm 6.0.2 on Ubuntu 22.04
 
 ## Tutorial Used
 
-The files in the tutorial directory are my work while working through the pytorch repositor [found here]:(https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html)
-
+The files in the tutorial directory are my work while working through the pytorch repositor [found here].(https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html)
