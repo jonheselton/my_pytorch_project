@@ -1,165 +1,106 @@
-# PyTorch - Training a classifier
+# Missed module 3, so doing it after i finished 4
 
-# In my docker run command, -w specifies the working directory.  With python executing in that directory, any downloaded data will be saved to the dockerx directory on the host.
-# docker run --volume specifies the host directory and where it should be mounted inside the container -v <host directory>:<container directory>
+# affine operation
+# channel
+# convolution
+# RELU activation function
+# connections
+# Fully connected
+# Guasian layer
+# Loss Function - Calculates loss, or error, based on the output of the nn and the target.  torch.nn has many waiting to be used
 
 import torch
-import torchvision
-import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
-# set device to the gpu
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# Define the transformer to normalize the training data
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-# Size of each data input
-batch_size = 4
-
-# Download the trainin data gset
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                        download=True, transform=transform)
-# Load the training data
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
-# Download the testing data set
-testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                       download=True, transform=transform)
-# Load the testing data
-testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                         shuffle=False, num_workers=2)
-# Create a set of each class
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-# Define the NN
 class Net(nn.Module):
+
     def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 12, 5) # width (second param) was 6
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(12, 16, 5) # width (first param) was 6
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        super(Net, self).__init__()
+        # 1 input image channel, 6 output channels, 5x5 square convolution
+        # kernel
+        self.conv1 = nn.Conv2d(1, 6, 5)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        # an affine operation: y = Wx + b
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)  # 5*5 from image dimension
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
 
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = torch.flatten(x, 1) # flatten all dimensions except batch
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+    def forward(self, input):
+        # Convolution layer C1: 1 input image channel, 6 output channels,
+        # 5x5 square convolution, it uses RELU activation function, and
+        # outputs a Tensor with size (N, 6, 28, 28), where N is the size of the batch
+        c1 = F.relu(self.conv1(input))
+        # Subsampling layer S2: 2x2 grid, purely functional,
+        # this layer does not have any parameter, and outputs a (N, 16, 14, 14) Tensor
+        s2 = F.max_pool2d(c1, (2, 2))
+        # Convolution layer C3: 6 input channels, 16 output channels,
+        # 5x5 square convolution, it uses RELU activation function, and
+        # outputs a (N, 16, 10, 10) Tensor
+        c3 = F.relu(self.conv2(s2))
+        # Subsampling layer S4: 2x2 grid, purely functional,
+        # this layer does not have any parameter, and outputs a (N, 16, 5, 5) Tensor
+        s4 = F.max_pool2d(c3, 2)
+        # Flatten operation: purely functional, outputs a (N, 400) Tensor
+        s4 = torch.flatten(s4, 1)
+        # Fully connected layer F5: (N, 400) Tensor input,
+        # and outputs a (N, 120) Tensor, it uses RELU activation function
+        f5 = F.relu(self.fc1(s4))
+        # Fully connected layer F6: (N, 120) Tensor input,
+        # and outputs a (N, 84) Tensor, it uses RELU activation function
+        f6 = F.relu(self.fc2(f5))
+        # Gaussian layer OUTPUT: (N, 84) Tensor input, and
+        # outputs a (N, 10) Tensor
+        output = self.fc3(f6)
+        return output
 
-# initialize the NN
+
 net = Net()
-# send the net to the gpu
-net.to(device)
-# Define loss
-criterion = nn.CrossEntropyLoss()
-# Define the optimizer
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+print(net)
 
-for epoch in range(4):  # loop over the dataset multiple times # doubled range
+# Calculating Loss
+output = net(input)
+target = torch.randn(10)  # a dummy target, for example
+target = target.view(1, -1)  # make it the same shape as output
+criterion = nn.MSELoss() # sets the loss function
 
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data[0].to(device), data[1].to(device)
+loss = criterion(output, target) # loss function acts on the output and target
+print(loss) # returns a tensor
 
-        # zero the parameter gradients
-        optimizer.zero_grad()
+# This helps visualize the forward function leading to the output, and finally the loss.
+# input -> conv2d -> relu -> maxpool2d -> conv2d -> relu -> maxpool2d
+#       -> flatten -> linear -> relu -> linear -> relu -> linear
+#       -> MSELoss
+#       -> loss
 
-        # forward + backward + optimize
-        outputs = net(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+# When we step backwards through the nn, we move up one function at a time, updating the gradient of each step
+# To visualize...
+print(loss.grad_fn)  # MSELoss
+print(loss.grad_fn.next_functions[0][0])  # Linear
+print(loss.grad_fn.next_functions[0][0].next_functions[0][0])  # ReLU
 
-        # print statistics
-        running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
-            running_loss = 0.0
+# Run the back propegation
+loss.backward()
 
-print('Finished Training')
+# Now that backpropegation has been run, and the gradients are set, we need to adjust the weights
+# The simplest weight optimization is weight = weight - learning_rate * gradient
+# weights are a parameter of the nn
 
-# Save the model
-PATH = './models/cifar_net_double_width.pth'
-torch.save(net.state_dict(), PATH)
-# # Load the model
-# net = Net()
-# net.load_state_dict(torch.load(PATH))
+learning_rate = 0.01
+for f in net.parameters():
+    f.data.sub_(f.grad.data * learning_rate)
 
-# Testing the model
-# First looking at the test data
-dataiter = iter(testloader)
-images, labels = next(dataiter)
+# There are many different rules for changing the parameters.  the nn module has some built in
+import torch.optim as optim
 
-# Print the test labels
-print('GroundTruth: ', ' '.join(f'{classes[labels[j]]:5s}' for j in range(4)))
+# create your optimizer
+optimizer = optim.SGD(net.parameters(), lr=0.01) # input the parameters and learning rate (lr) into the optimizer
 
-# get the model's results
-outputs = net(images)
+# in your training loop:
+optimizer.zero_grad()   # zero the gradient buffers, we don't want the gradients to accumulate during the backpro
+output = net(input) # gets the output of the nn
+loss = criterion(output, target) # calculates the loss
+loss.backward() # propegate the gradient back through the nn
+optimizer.step()    # Update the weights!
 
-_, predicted = torch.max(outputs, 1)
-
-print('Predicted: ', ' '.join(f'{classes[predicted[j]]:5s}'
-                              for j in range(4)))
-
-# Check all the test data
-correct = 0
-total = 0
-# since we're not training, we don't need to calculate the gradients for our outputs
-with torch.no_grad():
-    for data in testloader:
-        images, labels = data[0].to(device), data[1].to(device)
-        # calculate outputs by running images through the network
-        outputs = net(images)
-        # the class with the highest energy is what we choose as prediction
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
-### output Accuracy of the network on the 10000 test images: 55 %
-
-# calculate and display per class accuracty
-# prepare to count predictions for each class
-correct_pred = {classname: 0 for classname in classes}
-total_pred = {classname: 0 for classname in classes}
-
-# again no gradients needed
-with torch.no_grad():
-    for data in testloader:
-        images, labels = data[0].to(device), data[1].to(device)
-        outputs = net(images)
-        _, predictions = torch.max(outputs, 1)
-        # collect the correct predictions for each class
-        for label, prediction in zip(labels, predictions):
-            if label == prediction:
-                correct_pred[classes[label]] += 1
-            total_pred[classes[label]] += 1
-
-
-# print accuracy for each class
-for classname, correct_count in correct_pred.items():
-    accuracy = 100 * float(correct_count) / total_pred[classname]
-    print(f'Accuracy for class: {classname:5s} is {accuracy:.1f} %')
-### Output
-# Accuracy for class: plane is 53.2 %
-# Accuracy for class: car   is 68.5 %
-# Accuracy for class: bird  is 31.7 %
-# Accuracy for class: cat   is 20.0 %
-# Accuracy for class: deer  is 41.2 %
-# Accuracy for class: dog   is 62.5 %
-# Accuracy for class: frog  is 75.2 %
-# Accuracy for class: horse is 61.1 %
-# Accuracy for class: ship  is 77.5 %
-# Accuracy for class: truck is 66.1 %
