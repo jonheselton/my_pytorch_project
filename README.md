@@ -15,8 +15,8 @@ Radeon 7900xtx ROCm 6.0.2 on Ubuntu 22.04
 
 ## Tutorials Used
 
-Pytorch Blitz [found here](https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html)
-Pytorch [DCGAN](https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html)
+- Pytorch Blitz [found here](https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html)
+- Pytorch [DCGAN](https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html)
 
 ### Notes
 
