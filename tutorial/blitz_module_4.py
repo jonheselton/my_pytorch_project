@@ -2,7 +2,7 @@
 
 # In my docker run command, -w specifies the working directory.  With python executing in that directory, any downloaded data will be saved to the dockerx directory on the host.
 # docker run --volume specifies the host directory and where it should be mounted inside the container -v <host directory>:<container directory>
-# transformer - 
+
 import torch
 import torchvision
 import torchvision.transforms as transforms

@@ -1,14 +1,5 @@
 # Missed module 3, so doing it after i finished 4
 
-# affine operation
-# channel
-# convolution
-# RELU activation function
-# connections
-# Fully connected
-# Guasian layer
-# Loss Function - Calculates loss, or error, based on the output of the nn and the target.  torch.nn has many waiting to be used
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
