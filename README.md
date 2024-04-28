@@ -30,8 +30,10 @@ Radeon 7900xtx ROCm 6.0.2 on Ubuntu 22.04
 
 - Pytorch Blitz [found here](https://pytorch.org/tutorials/beginner/deep_learning_60min_blitz.html)
 - Pytorch [DCGAN](https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html)
+- [Hugging Face Diffusion](https://huggingface.co/learn/diffusion-course/unit0/1)
 
 ## Notes
 
 - [Google's ML Glossary](https://developers.google.com/machine-learning/glossary/)
+
 
