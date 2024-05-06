@@ -120,7 +120,7 @@ for train_dataloader in small_data_loaders:
             # Store the loss for later
             losses_epoch.append(loss.item())
             losses_subset.append(loss.item())
-            print(opt.state_dict.keys())
+            print(opt.state_dict().keys())
             writer.add_scalar("Gradients/Layer1_weight_update", opt.state_dict()["model.layer1.weight"].norm(), len(losses_epoch), len(losses_subset))# Track weight updates of a specific layer
             writer.add_scalar("Gradients/Layer2_weight_update", opt.state_dict()["model.layer2.weight"].norm(), len(losses_epoch), len(losses_subset))
             writer.add_scalar("Gradients/Layer3_weight_update", opt.state_dict()["model.layer3.weight"].norm(), len(losses_epoch), len(losses_subset))
