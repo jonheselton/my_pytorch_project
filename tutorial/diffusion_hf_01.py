@@ -3,11 +3,11 @@ import torchvision
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Subset
+from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
-import numpy as np
 from torchvision.utils import save_image
-from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 # Used from UNet2DModel from diffusers to understand the size changes in the Down and Up layers
 def corrupt(x, amount):
