@@ -1,5 +1,3 @@
-# Missed module 3, so doing it after i finished 4
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
