@@ -47,10 +47,11 @@ rand_string = randomword(4)
 
 """ Tensorboard Model training demo """
 def corrupt(x, amount):
-    for i in range(amount + 1):
-        noise = torch.randn_like(x)
-        noisey = x + noise
-    return noisey
+  """Corrupt the input `x` by mixing it with noise according to `amount`"""
+  noise = torch.rand_like(x)
+  amount = amount.view(-1, 1, 1, 1) # Sort shape so broadcasting works
+  return x*(1-amount) + noise*amount 
+
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
     def __init__(self, in_channels=3, out_channels=3):
@@ -129,10 +130,11 @@ writer = SummaryWriter(f'logs/training_{rand_string}')
 for epoch in range(n_epochs):
     i = 0
     for x, y in small_data_loader:
-        i += 1
+        i += len(x)
         # Get some data and prepare the corrupted version
         x = x.to(device) # Data on the GPU
-        noisy_x = corrupt(x, 0) # Create our noisy x
+        amount = torch.linspace(0, 1, x.shape[0]).to(device)
+        noisy_x = corrupt(x, amount) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)
         # Calculate the loss
@@ -144,7 +146,7 @@ for epoch in range(n_epochs):
         running_loss += loss.item()
         if i % 100 == 99: # every 100 mini-batches...
             writer.add_scalar('training loss',
-                        running_loss / 1000,
+                        running_loss / 100,
                         epoch * len(small_data_loader) + i)
             target_img_grid = torchvision.utils.make_grid(x[0:16])
             noisy_img_grid = torchvision.utils.make_grid(noisy_x[0:16])
@@ -152,6 +154,7 @@ for epoch in range(n_epochs):
             writer.add_image(f'Sample input',target_img_grid, epoch * len(small_data_loader) + i)
             writer.add_image(f'Sample noisy',noisy_img_grid, epoch * len(small_data_loader) + i)
             writer.add_image(f'Sample predictions',pred_img_grid, epoch * len(small_data_loader) + i)
+            running_loss = 0.0
 
 writer.close()
 PATH = './models/tensor_board_new_corruption_subsets_unet_diffusion.pth'

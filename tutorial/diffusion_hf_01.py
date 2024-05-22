@@ -1,7 +1,5 @@
-import random, string
-import os
-import torch
-import torchvision
+import random, string, os, torch, torchvision
+from tqdm import tqdm
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Subset
@@ -16,10 +14,10 @@ def randomword(length):
    return ''.join(random.choice(letters) for i in range(length))
 # Used from UNet2DModel from diffusers to understand the size changes in the Down and Up layers
 def corrupt(x, amount):
-    for i in range(amount + 1):
-        noise = torch.randn_like(x)
-        noisey = x + noise
-    return noisey
+  """Corrupt the input `x` by mixing it with noise according to `amount`"""
+  noise = torch.rand_like(x)
+  amount = amount.view(-1, 1, 1, 1) # Sort shape so broadcasting works
+  return x*(1-amount) + noise*amount 
 
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
@@ -35,7 +33,7 @@ class BasicUNet(nn.Module):
             nn.Conv2d(512, 256, kernel_size=5, padding=2),
             nn.Conv2d(256, out_channels, kernel_size=5, padding=2), 
         ])
-        self.act = nn.ReLU() # The activation function
+        self.act = nn.LeakyReLU() # The activation function
         self.downscale = nn.MaxPool2d(2)
         self.upscale = nn.Upsample(scale_factor=2)
     def forward(self, x):
@@ -56,13 +54,16 @@ class BasicUNet(nn.Module):
             x = self.act(l(x)) # Through the layer and the activation function
             # print(f'x after activation in up layer {i} {x.size()}')
         return x
-run_str = randomword(3)
-writer = SummaryWriter(f'logs/{os.path.basename(__file__)}_{run_str}') 
+run_id = f'{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(3)}'
+print(f'Beginning training run {run_id}')
+writer = SummaryWriter(f'logs/{run_id}') 
 device = torch.device("cuda")
 dataroot = "data/celeba"
 workers = 16
-batch_size = 32
+batch_size = 40
 image_size = 256
+n_epochs = 5
+loss_fn = F.mse_loss
 # Use celeb dataloader instead
 dataset = dset.ImageFolder(root=dataroot, transform=transforms.Compose([
                                transforms.Resize(image_size),
@@ -70,26 +71,20 @@ dataset = dset.ImageFolder(root=dataroot, transform=transforms.Compose([
                                transforms.ToTensor(),
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                            ]))
-# create smaller subsets of the total data
-
 train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=workers)
-n_epochs = 3
 # Create the network
 net = BasicUNet()
 net.to(device)
-# Our loss function
-loss_fn = nn.SmoothL1Loss()
-# The optimizer
-opt = torch.optim.Adam(net.parameters(), lr=1e-3) 
-# The training loops
+opt = torch.optim.AdamW(net.parameters(), lr=4e-4) 
 running_loss = 0.0
+i = 0
+pbar = tqdm(total=len(train_dataloader) * n_epochs)
 for epoch in range(n_epochs):
-    i = 0
     for x, y in train_dataloader:
-        i += 1
         # Get some data and prepare the corrupted version
         x = x.to(device) # Data on the GPU
-        noisy_x = corrupt(x, 0) # Create our noisy x
+        amount = torch.linspace(0, 1, x.shape[0]).to(device)
+        noisy_x = corrupt(x, amount) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)
         # Calculate the loss
@@ -99,32 +94,33 @@ for epoch in range(n_epochs):
         loss.backward(loss)
         opt.step()
         running_loss += loss.item()
-        if i % 1000 == 999:    # every 1000 mini-batches...
-            writer.add_scalar('training loss',
-                        running_loss / 1000,
-                        epoch * len(train_dataloader) + i)
-            target_img_grid = torchvision.utils.make_grid(x)
-            noisy_img_grid = torchvision.utils.make_grid(noisy_x)
-            pred_img_grid = torchvision.utils.make_grid(pred)
-            writer.add_image(f'Sample input',target_img_grid, epoch * len(train_dataloader) + i)
-            writer.add_image(f'Sample noisy',noisy_img_grid, epoch * len(train_dataloader) + i)
-            writer.add_image(f'Sample predictions',pred_img_grid, epoch * len(train_dataloader) + i)
-
+        if i % 250 == 249:    # every 500 mini-batches...
+            writer.add_scalar('training loss', running_loss / 500, i)
+            img_stack_0 = torch.stack((noisy_x[-1],pred[-1],x[-1]))
+            writer.add_images('Noisiest Image Sampls', img_stack_0, epoch * len(train_dataloader) + i)
+            img_stack_1 = torch.stack((noisy_x[batch_size//2],pred[batch_size//2],x[batch_size//2]))
+            writer.add_images('Middlest Noisy Image Sampls', img_stack_1, i)
+        i += 1
+        pbar.update(1)
+pbar.close()
 writer.close()
-PATH = f'models/{os.path.basename(__file__)}_{run_str}.pth'
+print(f'Training for model id {run_id} completed')
+PATH = f'models/{run_id}.pth'
 torch.save(net.state_dict(), PATH)
 # net = BasicUNet().to(device)
 # net.load_state_dict(torch.load(PATH))
 # Sampling
-# n_steps = 20
-# x = torch.rand(4, 3, 256, 256).to(device)
-# q = x
-# for i in range(n_steps):
-#     with torch.no_grad():
-#         pred = net(x)
-#         q = net(q)
-#     mix_factor = 1/(n_steps - i)
-#     x = x*(1-mix_factor) + pred*mix_factor
-#     for j, img in enumerate(pred): # j = num of fake images
-#         save_image(img, f'generated_images/relu_celeb_step_{i}_img_{j}.png')
-# save_image(q, 'generated_images/q.png')
+n_steps = 20
+x = torch.rand(4, 3, 256, 256).to(device)
+q = x
+for i in range(n_steps):
+    with torch.no_grad():
+        pred = net(x)
+        q = net(q)
+    mix_factor = 1/(n_steps - i)
+    x = x*(1-mix_factor) + pred*mix_factor
+    for j, img in enumerate(pred): # j = num of fake images
+        save_image(img, f'generated_images/{run_id}/celeb_step_{i}_img_{j}.png')
+    for j, img in enumerate(q): # j = num of fake images
+        save_image(img, f'generated_images/{run_id}/celeb_step_{i}_img_{j}.png')
+save_image(q, f'generated_images/{run_id}/q.png')
