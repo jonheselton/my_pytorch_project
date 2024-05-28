@@ -1,0 +1,2 @@
+Beginning training run diffusion_hf_01_jnzon
+  0% 0/189945 [00:00<?, ?it/s]HW Exception by GPU node-1 (Agent handle: 0x8b2ea70) reason :GPU Hang
