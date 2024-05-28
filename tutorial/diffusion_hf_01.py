@@ -66,23 +66,56 @@ def images_to_tb(images, tag = 'name_tag'):
     # Send a NCHW tensor to tensorboard
     writer = SummaryWriter(f'logs/{randomword(5)}')
     writer.add_images(tag, images)
+
+def initialize_weights(model):
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
     def __init__(self, in_channels=3, out_channels=3):
         super().__init__()
         self.down_layers = torch.nn.ModuleList([ 
             nn.Conv2d(in_channels, 256, kernel_size=5, padding=2),
+ #           nn.BatchNorm2d(256),
+ #           nn.LeakyReLU(inplace=True),
             nn.Conv2d(256, 512, kernel_size=5, padding=2),
+ #           nn.BatchNorm2d(512),
+ #           nn.LeakyReLU(inplace=True),
             nn.Conv2d(512, 512, kernel_size=5, padding=2),
+ #           nn.BatchNorm2d(512),
+ #           nn.LeakyReLU(inplace=True),
         ])
         self.up_layers = torch.nn.ModuleList([
             nn.Conv2d(512, 512, kernel_size=5, padding=2),
+#            nn.BatchNorm2d(512),
+#            nn.LeakyReLU(inplace=True),
             nn.Conv2d(512, 256, kernel_size=5, padding=2),
+#            nn.BatchNorm2d(256),
+#            nn.LeakyReLU(inplace=True),
             nn.Conv2d(256, out_channels, kernel_size=5, padding=2), 
         ])
         self.act = nn.LeakyReLU() # The activation function
         self.downscale = nn.MaxPool2d(2)
         self.upscale = nn.Upsample(scale_factor=2)
+    
+    # def forward(self, x):
+    #     h = []
+    #     for i, l in enumerate(self.down_layers):
+    #         x = l(x) # Convolution -> BN -> Activate
+    #         if isinstance(i, nn.LeakyReLU) and i < 6:
+    #           h.append(x) # Storing output for skip connection
+    #           x = self.downscale(x) # Downscale ready for the next layer
+    #     for i, l in enumerate(self.up_layers):
+    #         if isinstance(i, nn.Conv2d) and i > 2: # For all except the first up layer
+    #           x = self.upscale(x) # Upscale
+    #           x += h.pop() # Fetching stored output (skip connection)
+    #         x = l(x)
+    #     return x
+
     def forward(self, x):
         h = []
         for i, l in enumerate(self.down_layers):
@@ -109,7 +142,7 @@ dataroot = "data/celeba"
 workers = 16
 batch_size = 32
 image_size = 256
-n_epochs = 15
+n_epochs = 5
 loss_fn = nn.SmoothL1Loss(beta=1.0) 
 # Use celeb dataloader instead
 dataset = dset.ImageFolder(root=dataroot, transform=transforms.Compose([
@@ -122,7 +155,8 @@ train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_
 # Create the network
 net = BasicUNet()
 net.to(device)
-opt = torch.optim.AdamW(net.parameters(), lr=4e-4) 
+initialize_weights(net)
+opt = torch.optim.AdamW(net.parameters(), lr=2e-4) 
 running_loss = 0.0
 i = 0
 pbar = tqdm(total=len(train_dataloader) * n_epochs)
@@ -148,18 +182,18 @@ for epoch in range(n_epochs):
         if i % 250 == 249:    # every 250 mini-batches...
             writer.add_scalar('training loss', running_loss / 250, i)
             running_loss = 0.0
-        if i % 500 == 449:
+        if i % 500 == 499:
             img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
             writer.add_images('Image Sampls', img_stack_0, i)
         i += 1
         pbar.update(1)
-        if i % 10000 == 0:
-            PATH = f'models/{run_id}_{i}.pth'
-            torch.save(net.state_dict(), PATH)
+        
+    PATH = f'models/{run_id}_{epoch}.pth'
+    torch.save(net.state_dict(), PATH)
 pbar.close()
 writer.close()
 print(f'Training for model id {run_id} completed')
-PATH = f'models/{run_id}.pth'
+PATH = f'models/{run_id}-final.pth'
 torch.save(net.state_dict(), PATH)
 # PATH = 'models/diffusion_hf_01_ocu.pth'
 # net = BasicUNet().to(device)
