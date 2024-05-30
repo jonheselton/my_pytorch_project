@@ -142,7 +142,9 @@ dataroot = "data/celeba"
 workers = 16
 batch_size = 32
 image_size = 256
+
 n_epochs = 3
+
 loss_fn = nn.SmoothL1Loss(beta=1.0) 
 # Use celeb dataloader instead
 dataset = dset.ImageFolder(root=dataroot, transform=transforms.Compose([
@@ -156,7 +158,9 @@ train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_
 net = BasicUNet()
 net.to(device)
 initialize_weights(net)
+
 opt = torch.optim.AdamW(net.parameters(), lr=1e-4) 
+
 running_loss = 0.0
 i = 0
 pbar = tqdm(total=len(train_dataloader) * n_epochs)
