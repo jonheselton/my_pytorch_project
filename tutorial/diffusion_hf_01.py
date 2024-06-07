@@ -1,4 +1,4 @@
-import random, string, os, torch, torchvision
+import random, string, os, torch, torchvision, time
 from tqdm import tqdm
 from torch import nn
 from torch.nn import functional as F
@@ -8,7 +8,9 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 import numpy as np
-
+import os
+print(os.getcwd())
+print(os.path.dirname(os.path.abspath(__file__)))
 def randomword(length):
    letters = string.ascii_lowercase
    return ''.join(random.choice(letters) for i in range(length))
@@ -79,71 +81,80 @@ class BasicUNet(nn.Module):
     def __init__(self, in_channels=3, out_channels=3):
         super().__init__()
         self.down_layers = torch.nn.ModuleList([ 
-            nn.Conv2d(in_channels, 256, kernel_size=5, padding=2),
- #           nn.BatchNorm2d(256),
- #           nn.LeakyReLU(inplace=True),
-            nn.Conv2d(256, 512, kernel_size=5, padding=2),
- #           nn.BatchNorm2d(512),
- #           nn.LeakyReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=5, padding=2),
- #           nn.BatchNorm2d(512),
- #           nn.LeakyReLU(inplace=True),
+           nn.Conv2d(in_channels, 128, kernel_size=5, padding=2),
+           nn.BatchNorm2d(128),
+           nn.LeakyReLU(inplace=True),
+           nn.Conv2d(128, 256, kernel_size=5, padding=2),
+           nn.BatchNorm2d(256),
+           nn.LeakyReLU(inplace=True),
+           nn.Conv2d(256, 256, kernel_size=5, padding=2),
+           nn.BatchNorm2d(256),
+           nn.LeakyReLU(inplace=True),
         ])
         self.up_layers = torch.nn.ModuleList([
-            nn.Conv2d(512, 512, kernel_size=5, padding=2),
-#            nn.BatchNorm2d(512),
-#            nn.LeakyReLU(inplace=True),
-            nn.Conv2d(512, 256, kernel_size=5, padding=2),
-#            nn.BatchNorm2d(256),
-#            nn.LeakyReLU(inplace=True),
-            nn.Conv2d(256, out_channels, kernel_size=5, padding=2), 
+           nn.Conv2d(256, 256, kernel_size=5, padding=2),
+           nn.BatchNorm2d(256),
+           nn.LeakyReLU(inplace=True),
+           nn.Conv2d(256, 128, kernel_size=5, padding=2),
+           nn.BatchNorm2d(128),
+           nn.LeakyReLU(inplace=True),
+           nn.Conv2d(128, out_channels, kernel_size=5, padding=2), 
         ])
         self.act = nn.LeakyReLU() # The activation function
         self.downscale = nn.MaxPool2d(2)
         self.upscale = nn.Upsample(scale_factor=2)
     
+    def forward(self, x):
+        h = []
+        times = {}
+        # Down!
+        for i, l in enumerate(self.down_layers):
+            down_start = time.time()
+            x = l(x) # Convolution -> BN -> Activate
+            if isinstance(i, nn.LeakyReLU) and i < 6:
+              h.append(x) # Storing output for skip connection
+              x = self.downscale(x) # Downscale ready for the next layer
+            down_end = time.time()
+            times[f'Down_{type(l)}_{i}'] = (down_end - down_start)
+        # Back Up
+        for i, l in enumerate(self.up_layers):
+            up_start = time.time()
+            if isinstance(i, nn.Conv2d) and i > 2: # For all except the first up layer
+              x = self.upscale(x) # Upscale
+              x += h.pop() # Fetching stored output (skip connection)
+            x = l(x)
+            up_end = time.time()
+            times[f'Up_{type(l)}_{i}'] = (up_end - up_start) 
+        return x, times
+
     # def forward(self, x):
     #     h = []
     #     for i, l in enumerate(self.down_layers):
-    #         x = l(x) # Convolution -> BN -> Activate
-    #         if isinstance(i, nn.LeakyReLU) and i < 6:
+    #         x = self.act(l(x)) # Through the layer and the activation function
+    #         # print(f'Size of x after down layer {i} activation {x.size()}')
+    #         if i < 2: # For all but the third (final) down layer:
+    #         #   print(f'Down Layers being added to h in loop {i} {x.size()}')
     #           h.append(x) # Storing output for skip connection
     #           x = self.downscale(x) # Downscale ready for the next layer
+    #         #   print(f'Size of x after down downscale in layet {i} {x.size()} prepared for next layer')
     #     for i, l in enumerate(self.up_layers):
-    #         if isinstance(i, nn.Conv2d) and i > 2: # For all except the first up layer
+    #         if i > 0: # For all except the first up layer
     #           x = self.upscale(x) # Upscale
+    #         #   print(f'Up layers Loop {i} x size {x.size()} and in h {h[-1].size()}')
     #           x += h.pop() # Fetching stored output (skip connection)
-    #         x = l(x)
+    #         x = self.act(l(x)) # Through the layer and the activation function
+    #         # print(f'x after activation in up layer {i} {x.size()}')
     #     return x
-
-    def forward(self, x):
-        h = []
-        for i, l in enumerate(self.down_layers):
-            x = self.act(l(x)) # Through the layer and the activation function
-            # print(f'Size of x after down layer {i} activation {x.size()}')
-            if i < 2: # For all but the third (final) down layer:
-            #   print(f'Down Layers being added to h in loop {i} {x.size()}')
-              h.append(x) # Storing output for skip connection
-              x = self.downscale(x) # Downscale ready for the next layer
-            #   print(f'Size of x after down downscale in layet {i} {x.size()} prepared for next layer')
-        for i, l in enumerate(self.up_layers):
-            if i > 0: # For all except the first up layer
-              x = self.upscale(x) # Upscale
-            #   print(f'Up layers Loop {i} x size {x.size()} and in h {h[-1].size()}')
-              x += h.pop() # Fetching stored output (skip connection)
-            x = self.act(l(x)) # Through the layer and the activation function
-            # print(f'x after activation in up layer {i} {x.size()}')
-        return x
 device = 'cuda'
 run_id = f'{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
 print(f'Beginning training run {run_id}')
 writer = SummaryWriter(f'logs/{run_id}') 
 dataroot = "data/celeba"
 workers = 16
-batch_size = 32
-image_size = 256
+batch_size = 128
+image_size = 128
 
-n_epochs = 3
+n_epochs = 10
 
 loss_fn = nn.SmoothL1Loss(beta=1.0) 
 # Use celeb dataloader instead
@@ -159,8 +170,9 @@ net = BasicUNet()
 net.to(device)
 initialize_weights(net)
 
-opt = torch.optim.AdamW(net.parameters(), lr=1e-4) 
-
+opt = torch.optim.AdamW(net.parameters(), lr=4e-4) 
+# projection(writer, dataset, 250)
+# model_graph(writer, net, dataset)
 running_loss = 0.0
 i = 0
 pbar = tqdm(total=len(train_dataloader) * n_epochs)
@@ -168,10 +180,10 @@ for epoch in range(n_epochs):
     for x, y in train_dataloader:
         # Get some data and prepare the corrupted version
         x = x.to(device)
-        noise_modifier = (i//1800)*.0225
-        noisy_x = corrupt_guassian(x, noise_modifier).to(device) # Create our noisy x
+        # noise_modifier = (i//1800)*.0225
+        noisy_x = corrupt_guassian(x, 0).to(device) # Create our noisy x
         # Get the model prediction
-        pred = net(noisy_x)
+        pred, times = net(noisy_x)
         # Calculate the loss
         loss = loss_fn(pred, x).to(device) # How close is the output to the true 'clean' x?
         # Backprop and update the params:
@@ -186,9 +198,9 @@ for epoch in range(n_epochs):
         if i % 250 == 249:    # every 250 mini-batches...
             writer.add_scalar('training loss', running_loss / 250, i)
             running_loss = 0.0
-        if i % 500 == 499:
             img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
             writer.add_images('Image Sampls', img_stack_0, i)
+            writer.add_scalars('layer timers', times, i)
         i += 1
         pbar.update(1)
         
@@ -209,8 +221,8 @@ q = x
 os.makedirs(f'generated_images/{run_id}')
 for i in range(n_steps):
     with torch.no_grad():
-        pred = net(x)
-        q = net(q)
+        pred, p = net(x)
+        q, p = net(q)
     mix_factor = 1/(n_steps - i)
     x = x*(1-mix_factor) + pred*mix_factor
     if i % 5 == 0:
