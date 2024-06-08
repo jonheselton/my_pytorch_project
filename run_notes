@@ -1,3 +1,4 @@
 ounti - learning rate 4e4 noise level rising over the batch `noise_level += 0.02` per image in batch of 128
-    V2 - simply changed corruption to keep it steady across the batch
+    V2 - simply changed corruption to keep it steady across the batch didn't finish made it to about 11k
+    V3 - reduced LR to 2e4, increaing noise by .1 per epoch with a .4 range between random noise
 nlqmw - rising error, no normalization when loading

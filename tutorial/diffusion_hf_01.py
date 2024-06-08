@@ -9,6 +9,11 @@ import torchvision.transforms as transforms
 from torchvision.utils import save_image
 import numpy as np
 import os
+def save_images_to_tb(tensor_stack, writer, n):
+    # create grid of images
+    img_grid = torchvision.utils.make_grid(img_stack)
+    # write to tensorboard
+    writer.add_image(f'noise_demo', img_grid, n)
 
 def randomword(length):
    letters = string.ascii_lowercase
@@ -20,17 +25,9 @@ def add_noise_gaussian(image, noise_level):
 
 def corrupt_guassian(images, noise_modifier = 0.0):
     noisy_images = []
-    noise_level = random.uniform(0.5 + noise_modifier, 1.0 + noise_modifier)  # Adjust noise level range ~0.1 is where it becomes noticable to me
-    # noise_level = 0.8
+    noise_level = random.uniform(0.4 + noise_modifier, 0.8 + noise_modifier)  # See noise_level tensorboard for examples
     for image in images:
         noisy_images.append(add_noise_gaussian(image.clone(), noise_level))
-    return torch.stack(noisy_images).to('cuda'), noise_level
-
-def corrupt(images):
-    noisy_images = []
-    for image in images:
-        corrupt, noise_level = corrupt_guassian(image.clone())
-        noisy_images.append(corrupt)
     return torch.stack(noisy_images).to('cuda'), noise_level
 
 def initialize_weights(model):
@@ -83,7 +80,7 @@ class BasicUNet(nn.Module):
             x = l(x)
         return x
 device = 'cuda'
-run_id = f'V2_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
+run_id = f'V3_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
 print(f'Beginning training run {run_id}')
 writer = SummaryWriter(f'logs/{run_id}') 
 dataroot = "data/celeba"
@@ -107,7 +104,7 @@ net = BasicUNet()
 net.to(device)
 initialize_weights(net)
 
-opt = torch.optim.AdamW(net.parameters(), lr=4e-4) 
+opt = torch.optim.AdamW(net.parameters(), lr=2e-4) 
 # projection(writer, dataset, 250)
 # model_graph(writer, net, dataset)
 running_loss = 0.0
@@ -117,8 +114,8 @@ for epoch in range(n_epochs):
     for x, y in train_dataloader:
         # Get some data and prepare the corrupted version
         x = x.to(device)
-        # noise_modifier = (i//1800)*.0225
-        noisy_x, noise_level = corrupt_guassian(x, 0) # Create our noisy x
+        noise_modifier = 0.1 * epoch
+        noisy_x, noise_level = corrupt_guassian(x, noise_modifier) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)
         # Calculate the loss
