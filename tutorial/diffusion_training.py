@@ -73,7 +73,7 @@ dataroot = "data/celeba"
 workers = 16
 batch_size = 128
 image_size = 128
-n_epochs = 5
+n_epochs = 10
 loss_fn = nn.SmoothL1Loss(beta=1.0) 
 # Use celeb dataloader instead
 # Create the network
@@ -94,13 +94,13 @@ for epoch in range(n_epochs):
                                transforms.RandomGrayscale(),
                                transforms.RandomHorizontalFlip(),
                                transforms.ToTensor(),
-#                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                            ]))
     train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=workers)
     for x, y in train_dataloader:
         # Get some data and prepare the corrupted version
         x = x.to(device)
-        noise_modifier = (i//527)*.05
+        noise_modifier = (i//1583)*.05
         noisy_x = corrupt_guassian(x, noise_modifier).to(device) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)

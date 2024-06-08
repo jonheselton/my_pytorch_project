@@ -9,65 +9,29 @@ import torchvision.transforms as transforms
 from torchvision.utils import save_image
 import numpy as np
 import os
-print(os.getcwd())
-print(os.path.dirname(os.path.abspath(__file__)))
+
 def randomword(length):
    letters = string.ascii_lowercase
    return ''.join(random.choice(letters) for i in range(length))
-# Used from UNet2DModel from diffusers to understand the size changes in the Down and Up layers
-def corrupt_original(x, amount):
-  """Corrupt the input `x` by mixing it with noise according to `amount`"""
-  noise = torch.rand_like(x).to('cuda')
-  amount = amount.view(-1, 1, 1, 1) # Sort shape so broadcasting works
-  return x*(1-amount) + noise*amount 
-
-# Experimenting with alternative corruption functions
 def add_noise_gaussian(image, noise_level):
 # Adds Gaussian noise to an image tensor.
   noise = torch.randn(image.shape).to('cuda') * noise_level
   return image + noise
 
-def add_noise_salt_and_pepper(image, noise_prob):
-#  Adds salt-and-pepper noise to an image tensor. Probablity a pixel is corrupted
-  salt_value = 1.0
-  pepper_value = 0.0
-  noise_mask = torch.empty_like(image).uniform_(0, 1).to('cuda')
-  salt_mask = noise_mask < noise_prob * 0.5
-  pepper_mask = noise_mask >= noise_prob * 0.5
-  image = image.clone().to('cuda')
-  image[salt_mask] = salt_value
-  image[pepper_mask] = pepper_value
-  return image
-
-def random_augment(image):
-# Randomly does Gaussian or SnP
-  augmentation_type = random.choice(['gaussian', 'salt_and_pepper'])
-  if augmentation_type == 'gaussian':
-      noise_level = random.uniform(0.01, 0.2)  # Adjust noise level range
-      return add_noise_gaussian(image, noise_level)
-  else:
-      noise_prob = random.uniform(0.01, 1.0)  # Adjust noise probability range
-      return add_noise_salt_and_pepper(image, noise_prob)
-
-
 def corrupt_guassian(images, noise_modifier = 0.0):
     noisy_images = []
-    noise_level = random.uniform(0.02 + noise_modifier, 0.06 + noise_modifier)  # Adjust noise level range ~0.1 is where it becomes noticable to me
+    noise_level = random.uniform(0.5 + noise_modifier, 1.0 + noise_modifier)  # Adjust noise level range ~0.1 is where it becomes noticable to me
     # noise_level = 0.8
     for image in images:
         noisy_images.append(add_noise_gaussian(image.clone(), noise_level))
-        noise_level += 0.02
-    return torch.stack(noisy_images).to('cuda')
+    return torch.stack(noisy_images).to('cuda'), noise_level
 
 def corrupt(images):
-  noisy_images = []
-  for image in images:
-      noisy_images.append(random_augment(image.clone()))
-  return torch.stack(noisy_images).to('cuda')
-def images_to_tb(images, tag = 'name_tag'):
-    # Send a NCHW tensor to tensorboard
-    writer = SummaryWriter(f'logs/{randomword(5)}')
-    writer.add_images(tag, images)
+    noisy_images = []
+    for image in images:
+        corrupt, noise_level = corrupt_guassian(image.clone())
+        noisy_images.append(corrupt)
+    return torch.stack(noisy_images).to('cuda'), noise_level
 
 def initialize_weights(model):
     for m in model.modules():
@@ -100,53 +64,26 @@ class BasicUNet(nn.Module):
            nn.LeakyReLU(inplace=True),
            nn.Conv2d(128, out_channels, kernel_size=5, padding=2), 
         ])
-        self.act = nn.LeakyReLU() # The activation function
         self.downscale = nn.MaxPool2d(2)
         self.upscale = nn.Upsample(scale_factor=2)
     
     def forward(self, x):
         h = []
-        times = {}
         # Down!
         for i, l in enumerate(self.down_layers):
-            down_start = time.time()
             x = l(x) # Convolution -> BN -> Activate
             if isinstance(i, nn.LeakyReLU) and i < 6:
               h.append(x) # Storing output for skip connection
               x = self.downscale(x) # Downscale ready for the next layer
-            down_end = time.time()
-            times[f'Down_{type(l)}_{i}'] = (down_end - down_start)
         # Back Up
         for i, l in enumerate(self.up_layers):
-            up_start = time.time()
             if isinstance(i, nn.Conv2d) and i > 2: # For all except the first up layer
               x = self.upscale(x) # Upscale
               x += h.pop() # Fetching stored output (skip connection)
             x = l(x)
-            up_end = time.time()
-            times[f'Up_{type(l)}_{i}'] = (up_end - up_start) 
-        return x, times
-
-    # def forward(self, x):
-    #     h = []
-    #     for i, l in enumerate(self.down_layers):
-    #         x = self.act(l(x)) # Through the layer and the activation function
-    #         # print(f'Size of x after down layer {i} activation {x.size()}')
-    #         if i < 2: # For all but the third (final) down layer:
-    #         #   print(f'Down Layers being added to h in loop {i} {x.size()}')
-    #           h.append(x) # Storing output for skip connection
-    #           x = self.downscale(x) # Downscale ready for the next layer
-    #         #   print(f'Size of x after down downscale in layet {i} {x.size()} prepared for next layer')
-    #     for i, l in enumerate(self.up_layers):
-    #         if i > 0: # For all except the first up layer
-    #           x = self.upscale(x) # Upscale
-    #         #   print(f'Up layers Loop {i} x size {x.size()} and in h {h[-1].size()}')
-    #           x += h.pop() # Fetching stored output (skip connection)
-    #         x = self.act(l(x)) # Through the layer and the activation function
-    #         # print(f'x after activation in up layer {i} {x.size()}')
-    #     return x
+        return x
 device = 'cuda'
-run_id = f'{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
+run_id = f'V2_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
 print(f'Beginning training run {run_id}')
 writer = SummaryWriter(f'logs/{run_id}') 
 dataroot = "data/celeba"
@@ -181,14 +118,16 @@ for epoch in range(n_epochs):
         # Get some data and prepare the corrupted version
         x = x.to(device)
         # noise_modifier = (i//1800)*.0225
-        noisy_x = corrupt_guassian(x, 0).to(device) # Create our noisy x
+        noisy_x, noise_level = corrupt_guassian(x, 0) # Create our noisy x
         # Get the model prediction
-        pred, times = net(noisy_x)
+        pred = net(noisy_x)
         # Calculate the loss
         loss = loss_fn(pred, x).to(device) # How close is the output to the true 'clean' x?
         # Backprop and update the params:
         opt.zero_grad()
         loss.backward()
+        # Log noise level
+        writer.add_scalar('noise', noise_level, i)
         # Log weights and gradients
         for name, param in net.named_parameters():
             writer.add_histogram(f"weights/{name}", param.data, i)
@@ -200,12 +139,9 @@ for epoch in range(n_epochs):
             running_loss = 0.0
             img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
             writer.add_images('Image Sampls', img_stack_0, i)
-            writer.add_scalars('layer timers', times, i)
         i += 1
         pbar.update(1)
         
-    PATH = f'models/{run_id}_{epoch}.pth'
-    torch.save(net.state_dict(), PATH)
 pbar.close()
 writer.close()
 print(f'Training for model id {run_id} completed')
@@ -223,6 +159,7 @@ for i in range(n_steps):
     with torch.no_grad():
         pred, p = net(x)
         q, p = net(q)
+    # Go back and get a better understanding of this
     mix_factor = 1/(n_steps - i)
     x = x*(1-mix_factor) + pred*mix_factor
     if i % 5 == 0:
