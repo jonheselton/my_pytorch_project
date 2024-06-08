@@ -92,5 +92,22 @@ print(loss.item())
 # noisey_2 = noisey + noise_2
 # output = [x, noise, noisey, noisey_2]
 
+# Functions for noise demo
+save_images_to_tb(tensor_stack, writer, n)
+
+corrupt_guassian(images, noise_modifier)
+x, y in next(enumerate(train_dataloader))
+
+def corrupt_guassian(images, noise_modifier = 0.0):
+    noisy_images = []
+    noise_level = random.uniform(0.5 + noise_modifier, 1.0 + noise_modifier)  # Adjust noise level range ~0.1 is where it becomes noticable to me
+    # noise_level = 0.8
+    for image in images:
+        noisy_images.append(add_noise_gaussian(image.clone(), noise_level))
+    return torch.stack(noisy_images).to('cuda')
+def add_noise_gaussian(image, noise_level):
+# Adds Gaussian noise to an image tensor.
+  noise = torch.randn(image.shape).to('cuda') * noise_level
+  return image + noise
 
 
