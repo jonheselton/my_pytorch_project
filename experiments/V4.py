@@ -15,9 +15,6 @@ def save_images_to_tb(tensor_stack, writer, n):
     # write to tensorboard
     writer.add_image(f'noise_demo', img_grid, n)
 
-def randomword(length):
-   letters = string.ascii_lowercase
-   return ''.join(random.choice(letters) for i in range(length))
 def add_noise_gaussian(image, noise_level):
 # Adds Gaussian noise to an image tensor.
   noise = torch.randn(image.shape).to('cuda') * noise_level

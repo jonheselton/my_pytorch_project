@@ -30,13 +30,6 @@ def corrupt_guassian(images, noise_modifier = 0.0):
         noisy_images.append(add_noise_gaussian(image.clone(), noise_level))
     return torch.stack(noisy_images).to('cuda'), noise_level
 
-def initialize_weights(model):
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-
 class BasicUNet(nn.Module):
     """A minimal UNet implementation."""
     def __init__(self, in_channels=3, out_channels=3):
@@ -80,7 +73,7 @@ class BasicUNet(nn.Module):
             x = l(x)
         return x
 device = 'cuda'
-run_id = f'V4_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
+run_id = f'{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
 print(f'Beginning training run {run_id}')
 writer = SummaryWriter(f'logs/{run_id}') 
 dataroot = "data/celeba"
@@ -88,7 +81,7 @@ workers = 16
 batch_size = 128
 image_size = 128
 
-n_epochs = 10
+n_epochs = 7
 
 loss_fn = nn.SmoothL1Loss(beta=1.0) 
 # Use celeb dataloader instead
@@ -96,17 +89,17 @@ dataset = dset.ImageFolder(root=dataroot, transform=transforms.Compose([
                                transforms.Resize(image_size),
                                transforms.CenterCrop(image_size),
                                transforms.ToTensor(),
+                               transforms.RandomHorizontalFlip(1),
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                            ]))
 train_dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=workers)
 # Create the network
 net = BasicUNet()
 net.to(device)
-initialize_weights(net)
-
+PATH = 'models/V4-1_wuwqz-final.pth'
+net = BasicUNet().to(device)
+net.load_state_dict(torch.load(PATH))
 opt = torch.optim.AdamW(net.parameters(), lr=2e-4) 
-# projection(writer, dataset, 250)
-# model_graph(writer, net, dataset)
 running_loss = 0.0
 i = 0
 pbar = tqdm(total=len(train_dataloader) * n_epochs)
@@ -114,7 +107,7 @@ for epoch in range(n_epochs):
     for x, y in train_dataloader:
         # Get some data and prepare the corrupted version
         x = x.to(device)
-        noise_modifier = 0.05 * (epoch//2)
+        noise_modifier = 0.05 * (epoch//4)
         noisy_x, noise_level = corrupt_guassian(x, noise_modifier) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)
@@ -131,37 +124,34 @@ for epoch in range(n_epochs):
             writer.add_histogram(f"gradients/{name}", param.grad.data, i)
         opt.step()
         running_loss += loss.item()
-        if i % 250 == 249:    # every 250 mini-batches...
-            writer.add_scalar('training loss', running_loss / 250, i)
+        if i % 150 == 149:    # every 250 mini-batches...
+            writer.add_scalar('training loss', running_loss / 150, i)
             running_loss = 0.0
             img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
             writer.add_images('Image Sampls', img_stack_0, i)
         i += 1
-        pbar.update(1)
-        
+        pbar.update(1)        
 pbar.close()
 writer.close()
 print(f'Training for model id {run_id} completed')
 PATH = f'models/{run_id}-final.pth'
 torch.save(net.state_dict(), PATH)
 # PATH = 'models/diffusion_hf_01_ocu.pth'
-# net = BasicUNet().to(device)
-# net.load_state_dict(torch.load(PATH))
 # Sampling
 n_steps = 100
 x = torch.rand(4, 3, 256, 256).to(device)
 q = x
 os.makedirs(f'generated_images/{run_id}')
 for i in range(n_steps):
+    save_image(x, f'generated_images/{run_id}/xceleb_step_{i}_img.png')
     with torch.no_grad():
-        pred, p = net(x)
-        q, p = net(q)
+        pred = net(x)
+        q = net(q)
     # Go back and get a better understanding of this
     mix_factor = 1/(n_steps - i)
     x = x*(1-mix_factor) + pred*mix_factor
-    if i % 5 == 0:
-        for j, img in enumerate(pred): # j = num of fake images
-            save_image(img, f'generated_images/{run_id}/celeb_step_{i}_img_{j}.png')
-        for j, img in enumerate(q): # j = num of fake images
-            save_image(img, f'generated_images/{run_id}/qceleb_step_{i}_img_{j}.png')
+    save_image(pred, f'generated_images/{run_id}/celeb_step_{i}_img.png')
+    save_image(q, f'generated_images/{run_id}/qceleb_step_{i}_img.png')
 save_image(q, f'generated_images/{run_id}/q.png')
+
+

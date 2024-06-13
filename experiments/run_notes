@@ -1,0 +1,14 @@
+ounti - learning rate 4e4 noise level rising over the batch `noise_level += 0.02` per image in batch of 128
+    V2 - simply changed corruption to keep it steady across the batch didn't finish made it to about 11k
+        - Corruption was random between 0.1 and 1.0
+    V3 - reduced LR to 2e4, increaing noise by .1 per epoch with a .4 range between random noise
+        Loss stopped decreasing around 1.6k relative to V1
+    V4 - increasing corruption per epoch
+        - From batch 5k onward error fluctuates between 0.0053 and 0.0056
+        - lowest batch losses were hit right before noise levels increased, indicating it had not yet converged for that level of noise
+    V4-1- Corruption will encrease every 4 Epochs, added 6 epochs (16 total)
+        - still not generating faces from pure noise, going to continue training
+        V4-1-2 - Set the corruption range to a static range of 1.0 - 1.4
+    V4-2 - Ran again with the original corruption settings on accident
+    V4-3 - Used V4-1 model output on accident, renaming.
+    V5 - Long run, with increasing corruption
