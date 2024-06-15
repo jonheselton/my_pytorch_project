@@ -80,7 +80,7 @@ class BasicUNet(nn.Module):
             x = l(x)
         return x
 device = 'cuda'
-run_id = f'V3_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
+run_id = f'V4_{os.path.basename(__file__)}'.strip('.py') + f'_{randomword(5)}'
 print(f'Beginning training run {run_id}')
 writer = SummaryWriter(f'logs/{run_id}') 
 dataroot = "data/celeba"
@@ -114,7 +114,7 @@ for epoch in range(n_epochs):
     for x, y in train_dataloader:
         # Get some data and prepare the corrupted version
         x = x.to(device)
-        noise_modifier = 0.1 * epoch
+        noise_modifier = 0.05 * (epoch//2)
         noisy_x, noise_level = corrupt_guassian(x, noise_modifier) # Create our noisy x
         # Get the model prediction
         pred = net(noisy_x)

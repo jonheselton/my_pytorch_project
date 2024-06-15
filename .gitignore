@@ -4,3 +4,5 @@ models/
 generated_images/
 huggingface_notebooks/
 logs/
+Dockerfile
+archive/
