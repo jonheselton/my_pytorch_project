@@ -5,4 +5,6 @@ generated_images/
 huggingface_notebooks/
 logs/
 Dockerfile
+Dockerfile
 archive/
+img_files
