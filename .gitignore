@@ -8,3 +8,5 @@ Dockerfile
 Dockerfile
 archive/
 img_files
+*/*scratch*
+scratch*
