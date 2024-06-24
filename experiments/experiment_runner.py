@@ -15,6 +15,7 @@ def training_run(
                 model_path, 
                 device, 
                 workers,
+                prefetch,
                 batch_size,
                 image_size,
                 shuffle,
@@ -25,6 +26,8 @@ def training_run(
                 corruption,
                 subset_start,
                 subset_end,
+                noise_step,
+                noise_step_iteration,
                 use_subset = False,
                 new_model = False):
     fn_start = time.time()
@@ -46,21 +49,9 @@ def training_run(
     dataset = dset.ImageFolder(root=data_root, transform=transforms)
     if use_subset:
         dataset = torch.utils.data.Subset(dataset, range(subset_start, subset_end))
-    data = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=workers, prefetch_factor=4)
+    data = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=workers, prefetch_factor=prefetch)
     writer = SummaryWriter(f'logs/{run_id}')
-    writer.add_text('model', f'{type(model)}')
-    writer.add_text('Loaded model', f'{model_path}')
-    writer.add_text('Loss function', f'{loss_fn}')
-    writer.add_text('Optimizer', f'{optimizer}')
-    writer.add_text('Noise modifier',f'{noise_modifier}')
-    writer.add_text('Learning rate', f'{lr}')
-    writer.add_text('Corruption function', f'{corruption}')
-    writer.add_text('Epochs', f'{n_epochs}')
-    writer.add_text('Batch size', f'{batch_size}')
-    writer.add_text('Image size', f'{image_size}')
-    writer.add_text('workers', f'{workers}')
-    writer.add_text('Data', f'{data_root}')
-    writer.add_text('Number of images', f'{len(data)}')
+    writer.add_text('config', f'#Run: {run_id} \n --- \n NeuralNet: {type(model).__name__} - Loaded model:{model_path} \n --- \n Loss function: {type(loss_fn).__name__} \n Corruption function: {corruption.__name__} - Noise modifier: {noise_modifier} \n --- \n Optimizer {optimizer.__name__} - Learning rate:{lr} \n --- \n Epochs: {n_epochs}  -  Batch size:  {batch_size}  -  Number of workers: {workers}  ---  Data: {data_root}  -  Number of images: {len(dataset)}  - Number of steps per epoch {len(data)} - Image size: {image_size}  -')
     running_loss = 0.0
     i = 0
     print(f'Beggining training run {run_id}\n Preperation took {time.time() - fn_start}')
@@ -68,7 +59,7 @@ def training_run(
     for epoch in range(n_epochs):
         for x, y in data:
             x = x.to(device)
-            noise_modifier = noise_modifier + (0.05 * i//5000)
+            noise_modifier = noise_modifier + (noise_step * i//noise_step_iteration)
             noisy_x = corruption(x, noise_modifier) # Create our noisy x
             pred = model(noisy_x)
             loss = loss_fn(pred, x)
@@ -83,7 +74,7 @@ def training_run(
             if i % 250 == 249: 
                 writer.add_scalar('training loss', running_loss / 250, i)
                 running_loss = 0.0
-            if i % 5000 == 4999:
+            if i % 1000 == 999:
                 img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
                 writer.add_images('Image Sampls', img_stack_0, i)
             i += 1
@@ -98,3 +89,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
