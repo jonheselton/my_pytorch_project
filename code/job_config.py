@@ -5,17 +5,17 @@ from code.corruption_functions import corrupt_guassian
 config = {
     'loss_fn' : torch.nn.SmoothL1Loss(beta=1.0),
     'optimizer' : torch.optim.AdamW,
-    'model' : BasicConvolutionUNet(),
-    'run_id' : 'faces_1.0.5-2',
+    'net' : BasicConvolutionUNet(),
+    'run_id' : 'faces_1.0.5-4',
     'new_model' : False,
-    'model_path' : 'models/faces_1.0.5-1',
+    'model_path' : 'models/faces_1.0.5-3',
     'device' : 'cuda',
     'workers' : 16,
     'prefetch' : 4,
     'batch_size' : 128,
     'image_size' : 128,
-    'shuffle' : False,
-    'n_epochs' : 16,
+    'shuffle' : True,
+    'n_epochs' : 4,
     'noise_modifier' : 0.4,
     'data_root' : 'data/celebclass/celeba',
     'lr' : 1e-3,
@@ -23,6 +23,7 @@ config = {
     'use_subset' : False,
     'subset_start' : 3000000,
     'subset_end' : 4600000,
-    'noise_step' : 0.05,
-    'noise_step_iteration' : 100000
+    'noise_increase' : 0.05,
+    'noise_increase_step' : 100000,
+    'notes' : 'Reduced the lr back down to .001'
 }

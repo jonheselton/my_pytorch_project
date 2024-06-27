@@ -6,11 +6,12 @@ from code.convolution_networks import BasicConvolutionUNet
 from code.corruption_functions import corrupt_guassian
 from code.job_config import config
 from code.utils import *
+from utils.run_config import TrainingConfig
 
 def training_run(
                 loss_fn, 
                 optimizer, 
-                model, 
+                net, 
                 run_id, 
                 model_path, 
                 device, 
@@ -26,17 +27,18 @@ def training_run(
                 corruption,
                 subset_start,
                 subset_end,
-                noise_step,
-                noise_step_iteration,
+                noise_increase,
+                noise_increase_step,
+                notes,
                 use_subset = False,
                 new_model = False):
     fn_start = time.time()
-    model.to(device)
+    net.to(device)
     if load_model:
-        load_model(model_path, model)
+        load_model(model_path, net)
     if new_model:
-        initialize_weights_kaiming(model)
-    opt = optimizer(model.parameters(), lr=lr)
+        initialize_weights_kaiming(net)
+    opt = optimizer(net.parameters(), lr=lr)
     transforms = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.RandomGrayscale(),
@@ -51,7 +53,7 @@ def training_run(
         dataset = torch.utils.data.Subset(dataset, range(subset_start, subset_end))
     data = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=workers, prefetch_factor=prefetch)
     writer = SummaryWriter(f'logs/{run_id}')
-    writer.add_text('config', f'#Run: {run_id} \n --- \n NeuralNet: {type(model).__name__} - Loaded model:{model_path} \n --- \n Loss function: {type(loss_fn).__name__} \n Corruption function: {corruption.__name__} - Noise modifier: {noise_modifier} \n --- \n Optimizer {optimizer.__name__} - Learning rate:{lr} \n --- \n Epochs: {n_epochs}  -  Batch size:  {batch_size}  -  Number of workers: {workers}  ---  Data: {data_root}  -  Number of images: {len(dataset)}  - Number of steps per epoch {len(data)} - Image size: {image_size}  -')
+    writer.add_text('config', f'#Run: {run_id} \n --- \n NeuralNet: {type(net).__name__} - Loaded model:{model_path} \n --- \n Loss function: {type(loss_fn).__name__} \n Corruption function: {corruption.__name__} - Noise modifier: {noise_modifier} \n --- \n Optimizer {optimizer.__name__} - Learning rate:{lr} \n --- \n Epochs: {n_epochs}  -  Batch size:  {batch_size}  -  Number of workers: {workers}  ---  Data: {data_root}  -  Number of images: {len(dataset)}  - Number of steps per epoch {len(data)} - Image size: {image_size}  \n --- \n {notes}')
     running_loss = 0.0
     i = 0
     print(f'Beggining training run {run_id}\n Preperation took {time.time() - fn_start}')
@@ -61,7 +63,7 @@ def training_run(
             x = x.to(device)
             noise_modifier = noise_modifier + (noise_step * i//noise_step_iteration)
             noisy_x = corruption(x, noise_modifier) # Create our noisy x
-            pred = model(noisy_x)
+            pred = net(noisy_x)
             loss = loss_fn(pred, x)
             opt.zero_grad()
             loss.backward()
@@ -79,7 +81,7 @@ def training_run(
                 writer.add_images('Image Sampls', img_stack_0, i)
             i += 1
             pbar.update(1)
-    save_model(f'models/{run_id}', model)
+    save_model(f'models/{run_id}', net)
     pbar.close()
     writer.close()
     print(f'Training complete, total duration: {time.time() - fn_start}, total imagets{len(data)}')
