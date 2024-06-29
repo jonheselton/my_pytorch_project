@@ -1,8 +1,8 @@
 import torch, random
 
-def add_noise_gaussian(image: torch.Tensor, noise_level: float) -> torch.Tensor:
+def add_noise_gaussian(image: torch.Tensor, noise_level: float, device: str = 'cuda') -> torch.Tensor:
     """ Add g noise to an image tensor (CHW) """
-    noise = torch.randn(image.shape).to('cuda') * noise_level
+    noise = torch.randn(image.shape).to(device) * noise_level
     return image + noise
 
 def corrupt_guassian(images: torch.Tensor, noise_modifier: float = 0.0):
@@ -12,3 +12,5 @@ def corrupt_guassian(images: torch.Tensor, noise_modifier: float = 0.0):
     for image in images:
         noisy_images.append(add_noise_gaussian(image.clone(), noise_level))
     return torch.stack(noisy_images)
+
+

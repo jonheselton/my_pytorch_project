@@ -1,8 +1,8 @@
-import torch, torchvision, tqdm
+import torch, torchvision, tqdm, math
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
-from code.utils import load_model, save_model
+from code.utils import load_model, save_model, initialize_weights_kaiming
 from code.convolution_networks import BasicConvolutionUNet
 from code.corruption_functions import corrupt_guassian
 from dataclasses import dataclass
@@ -11,26 +11,26 @@ config = {
     'loss_fn' : 'SmoothL1Loss',
     'optimizer' : 'AdamW',
     'net' : 'BasicConvolutionUNet',
-    'run_id' : 'faces_1.1.01_ms_faces',
+    'run_id' : 'noise_tests_bigrun',
     'new_model' : False,
-    'model_path' : 'models/faces_1.1_ms_faces',
+    'model_path' : 'models/noise_tests',
     'device' : 'cuda',
     'workers' : 16,
-    'prefetch' : 4,
-    'batch_size' : 128,
+    'prefetch' : 12,
+    'batch_size' : 16,
     'image_size' : 128,
     'shuffle' : True,
     'n_epochs' : 1,
     'noise_modifier' : 0.4,
     'data_root' : 'data/ms-celeb-1m/processed',
-    'lr' : 2e-4,
+    'lr' : 5e-5,
     'corruption' : 'corrupt_guassian',
     'use_subset' : True,
-    'subset_start' : 1000000,
-    'subset_end' : 2000000,
-    'noise_increase' : 0.05,
-    'noise_increase_step' : 10000,
-    'notes' : 'Continuing to run through MS-celeb dataset'
+    'subset_start' : 2200000,
+    'subset_end' : 4400000,
+    'noise_increase' : 0.005,
+    'noise_increase_step' : 1000,
+    'notes' : 'playing with noise and batch size'
 }
 
 @dataclass
@@ -66,7 +66,7 @@ class TrainingConfig:
         if self.model_path:
             load_model(self.model_path, net)
         if self.new_model:
-            initialize_weights_kaiming(net)
+            initialize_weights_kaiming(net, 'relu')
         corruption = corruption_functions[self.corruption.lower()]
         opt = optimizers[self.optimizer.lower()]
         opt = opt(net.parameters(), lr=self.lr)
@@ -92,10 +92,10 @@ class TrainingConfig:
         for epoch in range(self.n_epochs):
             for x, y in data:
                 x = x.to(self.device)
-                noise_modifier = self.noise_modifier + (self.noise_increase * i//self.noise_increase_step)
-                noisy_x = corruption(x, noise_modifier)
+                noise_amount = torch.rand_like(x)
+                noisy_x = noise_amount * x
                 pred = net(noisy_x)
-                loss = loss_fn(pred, x)
+                loss = loss_fn(pred, noise_amount)
                 opt.zero_grad()
                 loss.backward()
                 # writer.add_scalar('noise', noise_level, i)
@@ -107,7 +107,7 @@ class TrainingConfig:
                 if i % 250 == 249: 
                     writer.add_scalar('training loss', running_loss / 250, i)
                     running_loss = 0.0
-                if i % 1000 == 999:
+                if i % 250 == 249:
                     img_stack_0 = torch.stack((x[-1], noisy_x[-1], pred[-1]))
                     writer.add_images('Image Sampls', img_stack_0, i)
                 i += 1
@@ -137,7 +137,7 @@ optimizers = {
 }
 
 corruption_functions = {
-    'corrupt_guassian' : corrupt_guassian,
+    'corrupt_guassian' : corrupt_guassian
 }
 
 def main():
